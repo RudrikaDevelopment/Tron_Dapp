@@ -12,18 +12,37 @@ const tronWeb = new TronWeb(fullNode,solidityNode,eventServer,privateKey);
 const trc20ContractAddress = "TRPCRk4o32zzSAiV8eFoaS9CwqshL6wiFR";//contract address
 
 
-async function triggerSmartContract(contractAddress) {
+async function triggerSmartContract(contractAddress, requestFor) {
   //const trc20ContractAddress = "TRPCRk4o32zzSAiV8eFoaS9CwqshL6wiFR";//contract address
-
-  try {
-        let contract = await tronWeb.contract().at(contractAddress);
-        let result = await contract.name().call();
-        return result;
-    } catch(e) {
-        console.error("trigger smart contract error:",e);
-        return res.status(500).json({message: e.toString()});
+  let contract = await tronWeb.contract().at(contractAddress);
+  if(requestFor === "getTokenName"){
+    try {
+      let result = await contract.name().call();
+      return result;
+    }catch(e) {
+      console.error("trigger smart contract error:",e);
+      return res.status(500).json({message: e.toString()});
     }
   }
+  else if(requestFor === "getTokenSymbol"){
+    try {
+      let result = await contract.symbol().call();
+      return result;
+    }catch(e) {
+      console.error("trigger smart contract error:", e);
+      return res.status(500).json({message: e.toString()});
+    }
+  }
+  else if(requestFor === "getTokenDecimals"){
+    try {
+      let result = await contract.decimals().call();
+      return result;
+    }catch(e) {
+      console.error("trigger smart contract error:", e);
+      return res.status(500).json({message: e.toString()});
+    }
+  }
+}
 
 // Contract address register
 router.post("/addContract", (req, res, next) => {
@@ -52,20 +71,74 @@ router.post("/addContract", (req, res, next) => {
   }
 });
 
-// Contract getName
+/*  Method: To get token name of contract
+    Developed By: Rudrika Fichadiya
+    Date: 12/11/2020
+*/
 router.get("/getTokenName/:contractAddress",  (req, res, next) => {
+  if(req.params.contractAddress === undefined || req.params.contractAddress == " "){
+    return res.status(200).json({message: "Please provide contract address"});
+  }
+  Contract.findOne({contractAddress: req.params.contractAddress})
+    .then(contractData => {
+      triggerSmartContract(contractData.contractAddress,req.url.split('/')[1])
+      .then(data =>{
+        return res.status(200).json({tokenName: data});
+      })
+      .catch(err => {
+        return res.status(500).json({message: err.toString()});
+      })
+    })
+    .catch(err => {
+      res.status(500).json({
+        message: err.toString()
+    });
+  });
+});
+
+/*  Method: To get token symbol of contract
+    Developed By: Rudrika Fichadiya
+    Date: 12/11/2020
+*/
+router.get("/getTokenSymbol/:contractAddress",  (req, res, next) => {
 
   if(req.params.contractAddress === undefined || req.params.contractAddress == " "){
     return res.status(200).json({message: "Please provide contract address"});
   }
   Contract.findOne({contractAddress: req.params.contractAddress})
     .then(contractData => {
-      triggerSmartContract(contractData.contractAddress)
+      triggerSmartContract(contractData.contractAddress,req.url.split('/')[1] )
       .then(data =>{
-        return res.status(200).json({tokenName: data});
+        return res.status(200).json({tokenSymbol: data});
       })
       .catch(err => {
-        return res.status(500).json({message: e.toString()});
+        return res.status(500).json({message: err.toString()});
+      })
+    })
+    .catch(err => {
+      res.status(500).json({
+        message: err.toString()
+    });
+  });
+});
+
+/*  Method: To get token decimals/precision of contract
+    Developed By: Rudrika Fichadiya
+    Date: 12/11/2020
+*/
+router.get("/getTokenDecimals/:contractAddress",  (req, res, next) => {
+
+  if(req.params.contractAddress === undefined || req.params.contractAddress == " "){
+    return res.status(200).json({message: "Please provide contract address"});
+  }
+  Contract.findOne({contractAddress: req.params.contractAddress})
+    .then(contractData => {
+      triggerSmartContract(contractData.contractAddress,req.url.split('/')[1])
+      .then(data =>{
+        return res.status(200).json({decimals: data});
+      })
+      .catch(err => {
+        return res.status(500).json({message: err.toString()});
       })
     })
     .catch(err => {
