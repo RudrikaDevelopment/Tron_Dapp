@@ -9,19 +9,17 @@ const solidityNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const eventServer = new HttpProvider("https://api.shasta.trongrid.io/");
 const privateKey = "";
 const tronWeb = new TronWeb(fullNode,solidityNode,eventServer,privateKey);
-const trc20ContractAddress = "TRPCRk4o32zzSAiV8eFoaS9CwqshL6wiFR";//contract address
 
 
 async function triggerSmartContract(contractAddress, requestFor) {
-  
   let contract = await tronWeb.contract().at(contractAddress);
   if(requestFor === "getTokenName"){
     try {
       let result = await contract.name().call();
       return result;
     }catch(e) {
-      console.error("trigger smart contract error:",e);
-      return res.status(500).json({message: e.toString()});
+      console.error("get token name error:",e);
+      return e.toString();
     }
   }
   else if(requestFor === "getTokenSymbol"){
@@ -29,8 +27,8 @@ async function triggerSmartContract(contractAddress, requestFor) {
       let result = await contract.symbol().call();
       return result;
     }catch(e) {
-      console.error("trigger smart contract error:", e);
-      return res.status(500).json({message: e.toString()});
+      console.error("get token symbol error:", e);
+      return e.toString();
     }
   }
   else if(requestFor === "getTokenDecimals"){
@@ -38,8 +36,8 @@ async function triggerSmartContract(contractAddress, requestFor) {
       let result = await contract.decimals().call();
       return result;
     }catch(e) {
-      console.error("trigger smart contract error:", e);
-      return res.status(500).json({message: e.toString()});
+      console.error("get token decimals error:", e);
+      return e.toString();
     }
   }
   else if(requestFor === "getTokenTotalSupply"){
@@ -48,8 +46,8 @@ async function triggerSmartContract(contractAddress, requestFor) {
       let resultDecimal = BigInt(result._hex).toString();;
       return resultDecimal;
     }catch(e) {
-      console.error("trigger smart contract error:", e);
-      return res.status(500).json({message: e.toString()});
+      console.error("get token totalsupply error:", e);
+      return e.toString();
     }
   }
 }
@@ -61,35 +59,79 @@ async function getBalance(contractAddress, address){
     let balance = BigInt(result).toString();
     return balance;
   }catch(e) {
-    console.error("trigger smart contract error:", e);
-    return res.status(500).json({message: e.toString()});
+    console.error("get token balance error:", e);
+    return e.toString();
   }
 }
 
-// Contract address register
-router.post("/addContract", (req, res, next) => {
+async function getContractDetails(contractAddress){
+  let details = {};
+  let contract = await tronWeb.contract().at(contractAddress);
+  try {
+    details.name = await contract.name().call();
+    details.symbol = await contract.symbol().call();
+    details.decimal = await contract.decimals().call();
+    return details;
+  }catch(e) {
+    console.error("get token contract details error:", e);
+    return e.toString();
+  }
+}
+
+async function makeTransfer(contractAddress, fromAddress, toAddress, amount, feeLimitAmount){
+  var address = fromAddress;
+
+  try {
+      let contract = await tronWeb.contract().at(contractAddress);
+      let txHash = "";
+      await contract.transfer(
+          toAddress, //address _to
+          amount   //amount
+      ).send({
+          feeLimit: feeLimitAmount
+      }).then(output => {
+        txHash = output;
+      });
+      return txHash; 
+  } catch(error) {
+    return error;
+  }
+}
+/*  Method: To register token contract
+    Developed By: Rudrika Fichadiya
+    Date: 19/11/2020
+*/
+router.post("/addTokenContract", (req, res, next) => {
   if(req.body.contractAddress === undefined || req.body.contractAddress == " "){
     return res.status(200).json({message: "Please enter valid contractAddress"});
   }
   else {
-    
-    const contract = new Contract({
-      _id: new mongoose.Types.ObjectId(),
-      contractAddress: req.body.contractAddress,
-    });
-    contract
-    .save()
+    getContractDetails(req.body.contractAddress)
     .then(result => {
-      res.status(200).json({
+      const contractDetail = new Contract({
+        _id: new mongoose.Types.ObjectId(),
         contractAddress: req.body.contractAddress,
-        message: "Contract registered successfully"
+        tokenName: result.name,
+        tokenSymbol: result.symbol,
+        decimals: result.decimal
       });
+      contractDetail
+      .save()
+      .then(result => {
+        res.status(200).json({
+          contractAddress: req.body.contractAddress,
+          message: "Token contract added successfully"
+        });
+      })
+      .catch(err => {
+          res.status(500).json({
+            message: err.toString()
+          });
+        });
     })
     .catch(err => {
-        res.status(500).json({
-          message: err.toString()
-        });
-      });
+        return res.status(500).json({message: err.toString()});
+    })
   }
 });
 
@@ -217,6 +259,60 @@ router.get("/getBalance/:contractAddress/:address",  (req, res, next) => {
       .catch(err => {
         return res.status(500).json({message: err.toString()});
       })
+    })
+    .catch(err => {
+      res.status(500).json({
+        message: err.toString()
+    });
+  });
+});
+
+/*  Method: To transfer token to given address
+    Developed By: Rudrika Fichadiya
+    Date: 19/11/2020
+*/
+router.post("/transfer",  (req, res, next) => {
+
+  if(req.body.toAddress === undefined || req.body.toAddress == " "){
+    return res.status(200).json({message: "Please provide valid toAddress"});
+  }
+  else if(req.body.amount === undefined || req.body.amount == " "|| req.body.amount <= 0){
+    return res.status(200).json({message: "Please provide valid amount"});
+  }
+  else if(req.body.token === undefined || req.body.token == " "){
+    return res.status(200).json({message: "Please provide valid token"});
+  }
+  else if(req.body.fromAddress === undefined || req.body.fromAddress == " "){
+    return res.status(200).json({message: "Please provide valid fromAddress"});
+  }
+  else if(req.body.feeLimit === undefined || req.body.feeLimit == " " || req.body.feeLimit <= 0){
+    return res.status(200).json({message: "Please provide valid feeLimit"});
+  }
+  Contract.findOne({tokenSymbol: req.body.token})
+    .then(tokenData => { 
+      if(tokenData){
+        getBalance(tokenData.contractAddress,req.body.fromAddress)
+        .then(data => {
+          if(req.body.amount >= data){
+            return res.status(200).json({message: "Insufficient funds"});  
+          }
+          else{
+            makeTransfer(tokenData.contractAddress, req.body.fromAddress, req.body.toAddress, req.body.amount, req.body.feeLimit)
+            .then(transferData => {
+              return res.status(200).json({txnHash: transferData, message: "Transfer done successfully"});
+            })
+            .catch(err => {
+              return res.status(500).json({message: err.toString()});
+            })
+          }
+        })
+        .catch(err => {
+          return res.status(500).json({message: err.toString()});
+        })
+      }
+      else{
+        return res.status(404).json({message: "Token not registered"});
+      }   
     })
     .catch(err => {
       res.status(500).json({
