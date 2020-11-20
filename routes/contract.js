@@ -7,7 +7,7 @@ const HttpProvider = TronWeb.providers.HttpProvider;
 const fullNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const solidityNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const eventServer = new HttpProvider("https://api.shasta.trongrid.io/");
-const privateKey = " "; // Put your private key here
+const privateKey = " " // Put your private key here;
 const tronWeb = new TronWeb(fullNode,solidityNode,eventServer,privateKey);
 
 
@@ -43,7 +43,7 @@ async function triggerSmartContract(contractAddress, requestFor) {
   else if(requestFor === "getTokenTotalSupply"){
     try {
       let result = await contract.totalSupply().call();
-      let resultDecimal = BigInt(result._hex).toString();;
+      let resultDecimal = BigInt(result._hex).toString();
       return resultDecimal;
     }catch(e) {
       console.error("get token totalsupply error:", e);
@@ -111,6 +111,19 @@ async function approveToken(contractAddress, spenderAddress, amount, feeLimitAmo
         txHash = output;
       });
       return txHash; 
+  } catch(error) {
+    return error;
+  }
+}
+
+async function allowanceToken(contractAddress, spenderAddress, ownerAddress){
+  try {
+      let contract = await tronWeb.contract().at(contractAddress);
+      const result = await contract.allowance(
+        ownerAddress, // address _owner
+        spenderAddress, //address _spender
+      ).call();
+      return BigInt(result._hex).toString();
   } catch(error) {
     return error;
   }
@@ -364,6 +377,44 @@ router.post("/approve",  (req, res, next) => {
         approveToken(tokenData.contractAddress, req.body.spenderAddress, req.body.amount, req.body.feeLimit)
         .then(approveData => {
           return res.status(200).json({txnHash: approveData, message: "Approve done successfully"});
+        })
+        .catch(err => {
+          return res.status(500).json({message: err.toString()});
+        })
+      }
+      else{
+        return res.status(404).json({message: "Token not registered"});
+      }   
+    })
+    .catch(err => {
+      res.status(500).json({
+        message: err.toString()
+    });
+  });
+});
+
+/*  Method: To get allowance of the token
+    Developed By: Rudrika Fichadiya
+    Date: 20/11/2020
+*/
+router.post("/allowance",  (req, res, next) => {
+
+  if(req.body.spenderAddress === undefined || req.body.spenderAddress == " "){
+    return res.status(200).json({message: "Please provide valid spenderAddress"});
+  }
+  else if(req.body.ownerAddress === undefined || req.body.ownerAddress == " "|| req.body.ownerAddress <= 0){
+    return res.status(200).json({message: "Please provide valid amount"});
+  }
+  else if(req.body.token === undefined || req.body.token == " "){
+    return res.status(200).json({message: "Please provide valid token"});
+  }
+  Contract.findOne({tokenSymbol: req.body.token})
+    .then(tokenData => { 
+      if(tokenData){
+        
+        allowanceToken(tokenData.contractAddress, req.body.spenderAddress, req.body.ownerAddress)
+        .then(allowanceData => {
+          return res.status(200).json({allowanceAmount: allowanceData});
         })
         .catch(err => {
           return res.status(500).json({message: err.toString()});
