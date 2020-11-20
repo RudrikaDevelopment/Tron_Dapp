@@ -7,7 +7,7 @@ const HttpProvider = TronWeb.providers.HttpProvider;
 const fullNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const solidityNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const eventServer = new HttpProvider("https://api.shasta.trongrid.io/");
-const privateKey = "";
+const privateKey = " "; // Put your private key here
 const tronWeb = new TronWeb(fullNode,solidityNode,eventServer,privateKey);
 
 
@@ -86,6 +86,24 @@ async function makeTransfer(contractAddress, fromAddress, toAddress, amount, fee
       let txHash = "";
       await contract.transfer(
           toAddress, //address _to
+          amount   //amount
+      ).send({
+          feeLimit: feeLimitAmount
+      }).then(output => {
+        txHash = output;
+      });
+      return txHash; 
+  } catch(error) {
+    return error;
+  }
+}
+
+async function approveToken(contractAddress, spenderAddress, amount, feeLimitAmount){
+  try {
+      let contract = await tronWeb.contract().at(contractAddress);
+      let txHash = "";
+      await contract.approve(
+          spenderAddress, //address _to
           amount   //amount
       ).send({
           feeLimit: feeLimitAmount
@@ -305,6 +323,47 @@ router.post("/transfer",  (req, res, next) => {
               return res.status(500).json({message: err.toString()});
             })
           }
+        })
+        .catch(err => {
+          return res.status(500).json({message: err.toString()});
+        })
+      }
+      else{
+        return res.status(404).json({message: "Token not registered"});
+      }   
+    })
+    .catch(err => {
+      res.status(500).json({
+        message: err.toString()
+    });
+  });
+});
+
+/*  Method: To approve token to given address
+    Developed By: Rudrika Fichadiya
+    Date: 20/11/2020
+*/
+router.post("/approve",  (req, res, next) => {
+
+  if(req.body.spenderAddress === undefined || req.body.spenderAddress == " "){
+    return res.status(200).json({message: "Please provide valid spenderAddress"});
+  }
+  else if(req.body.amount === undefined || req.body.amount == " "|| req.body.amount <= 0){
+    return res.status(200).json({message: "Please provide valid amount"});
+  }
+  else if(req.body.token === undefined || req.body.token == " "){
+    return res.status(200).json({message: "Please provide valid token"});
+  }
+  else if(req.body.feeLimit === undefined || req.body.feeLimit == " " || req.body.feeLimit <= 0){
+    return res.status(200).json({message: "Please provide valid feeLimit"});
+  }
+  Contract.findOne({tokenSymbol: req.body.token})
+    .then(tokenData => { 
+      if(tokenData){
+        
+        approveToken(tokenData.contractAddress, req.body.spenderAddress, req.body.amount, req.body.feeLimit)
+        .then(approveData => {
+          return res.status(200).json({txnHash: approveData, message: "Approve done successfully"});
         })
         .catch(err => {
           return res.status(500).json({message: err.toString()});
