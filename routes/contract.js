@@ -7,7 +7,7 @@ const HttpProvider = TronWeb.providers.HttpProvider;
 const fullNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const solidityNode = new HttpProvider("https://api.shasta.trongrid.io/");
 const eventServer = new HttpProvider("https://api.shasta.trongrid.io/");
-const privateKey = " " // Put your private key here;
+const privateKey = " "; // Put your private key here;
 const tronWeb = new TronWeb(fullNode,solidityNode,eventServer,privateKey);
 
 
@@ -124,6 +124,25 @@ async function allowanceToken(contractAddress, spenderAddress, ownerAddress){
         spenderAddress, //address _spender
       ).call();
       return BigInt(result._hex).toString();
+  } catch(error) {
+    return error;
+  }
+}
+
+async function transferFromToken(contractAddress, fromAddress, toAddress, amount, feeLimitAmount){
+  try {
+      let txnHash = "";
+      let contract = await tronWeb.contract().at(contractAddress);
+      const result = await contract.transferFrom(
+        fromAddress, // address _from
+        toAddress, //address _to
+        amount, // amount to transfer from
+      ).send({
+        feeLimit: feeLimitAmount
+      }).then(output =>  {
+        txnHash = output;
+      });
+      return txnHash;
   } catch(error) {
     return error;
   }
@@ -328,13 +347,20 @@ router.post("/transfer",  (req, res, next) => {
             return res.status(200).json({message: "Insufficient funds"});  
           }
           else{
-            makeTransfer(tokenData.contractAddress, req.body.fromAddress, req.body.toAddress, req.body.amount, req.body.feeLimit)
-            .then(transferData => {
-              return res.status(200).json({txnHash: transferData, message: "Transfer done successfully"});
-            })
-            .catch(err => {
-              return res.status(500).json({message: err.toString()});
-            })
+            tronWeb.trx.getBalance(req.body.fromAddress)
+            .then(result => {
+              if(result > 0){
+                makeTransfer(tokenData.contractAddress, req.body.fromAddress, req.body.toAddress, req.body.amount, req.body.feeLimit)
+                .then(transferData => {
+                  return res.status(200).json({txnHash: transferData, message: "Transfer done successfully"});
+                })
+                .catch(err => {
+                  return res.status(500).json({message: err.toString()});
+                })
+              } else {
+                return res.status(200).json({message: "Insufficient TRX balance"});
+              }
+            });
           }
         })
         .catch(err => {
@@ -415,6 +441,67 @@ router.post("/allowance",  (req, res, next) => {
         allowanceToken(tokenData.contractAddress, req.body.spenderAddress, req.body.ownerAddress)
         .then(allowanceData => {
           return res.status(200).json({allowanceAmount: allowanceData});
+        })
+        .catch(err => {
+          return res.status(500).json({message: err.toString()});
+        })
+      }
+      else{
+        return res.status(404).json({message: "Token not registered"});
+      }   
+    })
+    .catch(err => {
+      res.status(500).json({
+        message: err.toString()
+    });
+  });
+});
+
+/*  Method: To transfer from token to given address
+    Developed By: Rudrika Fichadiya
+    Date: 20/11/2020
+*/
+router.post("/transferFrom",  (req, res, next) => {
+
+  if(req.body.toAddress === undefined || req.body.toAddress == " "){
+    return res.status(200).json({message: "Please provide valid toAddress"});
+  }
+  else if(req.body.amount === undefined || req.body.amount == " "|| req.body.amount <= 0){
+    return res.status(200).json({message: "Please provide valid amount"});
+  }
+  else if(req.body.token === undefined || req.body.token == " "){
+    return res.status(200).json({message: "Please provide valid token"});
+  }
+  else if(req.body.fromAddress === undefined || req.body.fromAddress == " "){
+    return res.status(200).json({message: "Please provide valid fromAddress"});
+  }
+  else if(req.body.feeLimit === undefined || req.body.feeLimit == " " || req.body.feeLimit <= 0){
+    return res.status(200).json({message: "Please provide valid feeLimit"});
+  }
+  Contract.findOne({tokenSymbol: req.body.token})
+    .then(tokenData => { 
+      if(tokenData){
+        getBalance(tokenData.contractAddress,req.body.fromAddress)
+        .then(data => {
+          if(req.body.amount >= data){
+            return res.status(200).json({message: "Insufficient token balance"});  
+          }
+          else{
+            tronWeb.trx.getBalance(req.body.fromAddress)
+            .then(result => {
+              if(result > 0){
+                transferFromToken(tokenData.contractAddress, req.body.fromAddress, req.body.toAddress, req.body.amount, req.body.feeLimit)
+                .then(transferData => {
+                  return res.status(200).json({txnHash: transferData, message: "Transfer from done successfully"});
+                })
+                .catch(err => {
+                  return res.status(500).json({message: err.toString()});
+                })
+              } else {
+                return res.status(200).json({message: "Insufficient TRX balance"});
+              }
+            });
+          }
         })
         .catch(err => {
           return res.status(500).json({message: err.toString()});
