@@ -1,0 +1,65 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+.sendButton {
+  background: #da0e0e;
+  padding: 0 30px;
+  height: 40px;
+  line-height: 40px;
+  color: #FFFFFF;
+  border-radius: 3px;
+  transition: all 200ms ease;
+  font-family: sans-serif;
+}
+.textarea {
+  width: 400px;
+  height: 5px;
+  background: #ffbbb4;
+  border: 1px solid #f89e94 !important;
+  border-radius: 2px !important;
+  resize: none;
+  padding: 20px;
+  outline: none !important;
+  text-align: left;
+}
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+.line{
+  width: 112px;
+  height: 47px;
+  border-bottom: 1px solid black;
+  position: absolute;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
